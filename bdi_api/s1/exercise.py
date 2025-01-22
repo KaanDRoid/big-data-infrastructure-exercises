@@ -5,8 +5,7 @@ import logging
 import pandas as pd
 from tqdm import tqdm
 from typing import Annotated
-from bs4 import BeautifulSoup 
-
+from bs4 import BeautifulSoup
 from fastapi import APIRouter, status
 from fastapi.params import Query
 from urllib.parse import urljoin
@@ -23,66 +22,57 @@ s1 = APIRouter(
     tags=["s1"],
 )
 
-
 @s1.post("/aircraft/download")
 def download_data(
     file_limit: Annotated[
         int,
         Query(
             ...,
-            description="""
-    Limits the number of files to download.
-    You must always start from the first the page returns and
-    go in ascending order in order to correctly obtain the results.
-    I'll test with increasing number of files starting from 100.""",
+            description="Limits the number of files to download. I'll test with increasing number of files starting from 100.",
         ),
     ] = 100,
 ) -> str:
     download_dir = os.path.join(settings.raw_dir, "day=20231101")
     base_url = "https://samples.adsbexchange.com/readsb-hist/2023/11/01/"
 
-    # Create directory if it doesn't exist
     os.makedirs(download_dir, exist_ok=True)
 
     # Clean download folder
     for file in os.listdir(download_dir):
         file_path = os.path.join(download_dir, file)
-        if os.path.isfile(file_path): 
+        if os.path.isfile(file_path):
             os.remove(file_path)
 
     try:
-        # Get list of files from the URL
         response = requests.get(base_url)
         response.raise_for_status()
-        
-        soup = BeautifulSoup(response.text, 'html.parser')
+
+        soup = BeautifulSoup(response.text, "html.parser")
         files = [
-            a['href'] for a in soup.find_all('a') 
-            if a['href'].endswith('.json.gz')
+            a["href"] for a in soup.find_all("a")
+            if a["href"].endswith(".json.gz")
         ][:file_limit]
-        
+
         downloaded_count = 0
         for file_name in tqdm(files, desc="Downloading files"):
             file_url = urljoin(base_url, file_name)
             response = requests.get(file_url, stream=True)
-            
             if response.status_code == 200:
                 file_path = os.path.join(download_dir, file_name[:-3])
-                with open(file_path, 'wb') as f:
+                with open(file_path, "wb") as f:
                     f.write(response.content)
                 downloaded_count += 1
             else:
                 logging.warning(f"Failed to download {file_name}")
 
         return f"Downloaded {downloaded_count} files to {download_dir}"
-    
+
     except requests.RequestException as e:
         logging.error(f"Error accessing URL: {str(e)}")
         return f"Error accessing URL: {str(e)}"
     except Exception as e:
         logging.error(f"Error during download: {str(e)}")
         return f"Error during download: {str(e)}"
-
 
 @s1.post("/aircraft/prepare")
 def prepare_data() -> str:
@@ -91,44 +81,59 @@ def prepare_data() -> str:
 
     os.makedirs(prepared_folder, exist_ok=True)
 
+    # Clean prepared folder
     for file in os.listdir(prepared_folder):
         file_path = os.path.join(prepared_folder, file)
         if os.path.isfile(file_path):
             os.remove(file_path)
 
-    for file in os.listdir(raw_folder):
-        if file.endswith(".json"):
-            file_path = os.path.join(raw_folder, file)
+    processed_count = 0
+    skipped_count = 0
+
+    for file_name in os.listdir(raw_folder):
+        if file_name.endswith(".json"):
+            file_path = os.path.join(raw_folder, file_name)
             try:
-                with open(file_path, "r") as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     file_data = json.load(f)
-                    aircraft_data = [
-                        {
-                            "icao": aircraft.get("hex"),
-                            "registration": aircraft.get("r"),
-                            "type": aircraft.get("t"),
-                            "latitude": aircraft.get("lat"),
-                            "longitude": aircraft.get("lon"),
-                            "timestamp": file_data.get("now"),
-                        }
-                        for aircraft in file_data.get("aircraft", [])
-                    ]
 
-                    if not aircraft_data:
-                        logging.warning(f"No aircraft data found in file {file}")
-                        continue
+                if "aircraft" not in file_data:
+                    logging.warning(f"'aircraft' key missing in {file_name}")
+                    skipped_count += 1
+                    continue
 
-                    df = pd.DataFrame(aircraft_data)
-                    df = df.dropna(subset=["icao", "registration", "type", "latitude", "longitude", "timestamp"])
+                aircraft_data = [
+                    {
+                        "icao": aircraft.get("hex"),
+                        "registration": aircraft.get("r"),
+                        "type": aircraft.get("t"),
+                        "latitude": aircraft.get("lat"),
+                        "longitude": aircraft.get("lon"),
+                        "timestamp": file_data.get("now"),
+                    }
+                    for aircraft in file_data["aircraft"]
+                ]
 
-                    output_csv = os.path.join(prepared_folder, f"{os.path.splitext(file)[0]}.csv")
-                    df.to_csv(output_csv, index=False)
+                if not aircraft_data:
+                    logging.warning(f"No aircraft data in {file_name}")
+                    skipped_count += 1
+                    continue
 
+                df = pd.DataFrame(aircraft_data)
+                df = df.dropna(subset=["icao", "registration", "type", "latitude", "longitude", "timestamp"])
+
+                output_csv = os.path.join(prepared_folder, f"{os.path.splitext(file_name)[0]}.csv")
+                df.to_csv(output_csv, index=False)
+                processed_count += 1
+
+            except json.JSONDecodeError:
+                logging.error(f"Invalid JSON in file {file_name}")
+                skipped_count += 1
             except Exception as e:
-                logging.warning(f"Failed to process file {file}: {e}")
+                logging.error(f"Failed to process {file_name}: {e}")
+                skipped_count += 1
 
-    return f"Data preparation completed successfully! CSV files saved in {prepared_folder}"
-
+    return f"Prepared data in {prepared_folder}. Processed: {processed_count}, Skipped: {skipped_count}"
 
 @s1.get("/aircraft/")
 def list_aircraft(num_results: int = 100, page: int = 0) -> list[dict]:
@@ -159,7 +164,6 @@ def list_aircraft(num_results: int = 100, page: int = 0) -> list[dict]:
     except Exception as e:
         logging.error(f"Failed to read file {csv_files[page]}: {e}")
         return []
-
 
 @s1.get("/aircraft/{icao}/positions")
 def get_aircraft_position(icao: str, num_results: int = 1000, page: int = 0) -> list[dict]:
@@ -200,7 +204,6 @@ def get_aircraft_position(icao: str, num_results: int = 1000, page: int = 0) -> 
     start_index = page * num_results
     end_index = start_index + num_results
     return positions[start_index:end_index]
-
 
 @s1.get("/aircraft/{icao}/stats")
 def get_aircraft_statistics(icao: str) -> dict:
