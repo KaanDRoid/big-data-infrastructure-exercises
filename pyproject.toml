@@ -5,7 +5,7 @@ description = "Exercises for the BTS Big Data Infrastructure course"
 readme = "README.adoc"
 authors = [
     "Marti Segarra <marti.segarra@bts.tech>",
-    "Your name <your.email@bts.tech" # TODO
+    "Your name <kaan.ak@bts.tech>" 
 ]
 packages = [{include = "bdi_api"}]
 
@@ -29,6 +29,11 @@ opentelemetry-api = "1.21.0"
 opentelemetry-sdk = "1.21.0"
 opentelemetry-instrumentation-fastapi = "0.42b0"
 # Add your dependencies here
+beautifulsoup4 = "^4.13.3"
+tqdm = "^4.67.1"
+boto3 = "^1.37.0"
+pandas = "^2.2.3"
+psycopg2-binary = "^2.9.10"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.5.0"
