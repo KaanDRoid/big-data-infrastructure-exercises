@@ -1,0 +1,104 @@
+[tool.poetry]
+name = "bdi-api"
+version = "0.0.1"
+description = "Exercises for the BTS Big Data Infrastructure course"
+readme = "README.adoc"
+authors = [
+    "Marti Segarra <marti.segarra@bts.tech>",
+    "Your name <kaan.ak@bts.tech>" 
+]
+packages = [{include = "bdi_api"}]
+
+[tool.poetry.scripts]
+start = "bdi_api.app:main"
+
+
+[tool.poetry.dependencies]
+python = ">=3.9,<4.0"
+requests = "^2"
+fastapi = {extras = ["standard"], version = "^0.115.6"}
+uvicorn = "^0.24.0"
+pydantic = "^2"
+pydantic-settings = "^2"
+#boto3 = "^1.33.7"
+urllib3 = "<2"  # Needed to resolve botocore fast
+duckdb = "^1"
+# Monitoring
+uptrace = "1.21.0"
+opentelemetry-api = "1.21.0"
+opentelemetry-sdk = "1.21.0"
+opentelemetry-instrumentation-fastapi = "0.42b0"
+# Add your dependencies here
+beautifulsoup4 = "^4.13.3"
+tqdm = "^4.67.1"
+boto3 = "^1.37.0"
+pandas = "^2.2.3"
+psycopg2-binary = "^2.9.10"
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^3.5.0"
+ruff = "^0.1.9"
+lxml = "^5.0.0"
+mypy = "^1.5.8"
+httpx = "^0.25.0"
+pytest = "^7.4.2"
+pytest-cov = "^4.0.0"
+pytest-env = "^0.8.1"
+pytest-asyncio = "^0.21"
+pytest-json-report = "^1.5.0"
+gitpython = "^3.1.40"
+moto = "^4.2.2"
+hypothesis = "^6"
+schemathesis = "^3.20"
+
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "bdi_api"
+]
+asyncio_mode="auto"
+minversion = "7.0"
+addopts = "-p no:warnings"
+testpaths = [
+    "tests",
+]
+
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = []
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+
+[tool.mypy]
+
+[[tool.mypy.overrides]]
+module = ["fastapi.*", "uvicorn.*", "boto3.*", "botocore.*", "pandas.*",
+    "psycopg2.*", "pydantic.*", "ruff.*", "pydantic_settings.*", "starlette.*",
+    "duckdb.*", "requests.*", "pytest.*", "importlib_metadata.*"
+]
+ignore_missing_imports = true
