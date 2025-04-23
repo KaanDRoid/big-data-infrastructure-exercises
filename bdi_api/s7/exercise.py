@@ -1,12 +1,13 @@
-from fastapi import APIRouter, status, HTTPException
-import boto3
-import psycopg2
+import gzip
 import json
 import logging
-import gzip
 from io import BytesIO
-from typing import List, Dict
+
+import boto3
+import psycopg2
+from fastapi import APIRouter, HTTPException, status
 from psycopg2.extras import execute_batch
+
 from bdi_api.settings import DBCredentials, Settings
 
 # Configure logging
@@ -43,16 +44,16 @@ def get_db_connection():
         )
     except psycopg2.Error as e:
         logger.error(f"Failed to connect to database: {str(e)}")
-        raise HTTPException(status_code=500, detail="Database connection failed")
+        raise HTTPException(status_code=500, detail="Database connection failed") from e
 
 # Fetch Data from S3 and Write to PostgreSQL
 @s7.post("/aircraft/prepare")
 def prepare_data() -> str:
     """Fetch raw data from S3 and insert it into PostgreSQL RDS."""
 
-    bucket_name = settings.s3_bucket  
-    prefix = "prepared/day=20231101/" 
-    
+    bucket_name = settings.s3_bucket
+    prefix = "prepared/day=20231101/"
+
     # List objects in S3 bucket
     try:
         response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
@@ -60,7 +61,7 @@ def prepare_data() -> str:
         logger.info(f"Bucket: {bucket_name}, Prefix: {prefix}, Found files: {len(files)}")
     except Exception as e:
         logger.error(f"Failed to list objects in S3 bucket: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to access S3 bucket: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to access S3 bucket: {str(e)}") from e
 
     if not files:
         logger.warning(f"No files found in S3 bucket: {bucket_name} with prefix: {prefix}")
@@ -87,7 +88,7 @@ def prepare_data() -> str:
                 emergency BOOLEAN
             );
         """)
-        
+
         # Add indexes for performance optimization
         cur.execute("CREATE INDEX IF NOT EXISTS idx_icao ON positions(icao);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON positions(timestamp);")
@@ -115,19 +116,19 @@ def prepare_data() -> str:
 
             for aircraft in data.get('aircraft', []):
                 aircraft_data_list.append((
-                    aircraft['icao'], 
-                    aircraft.get('registration', None), 
+                    aircraft['icao'],
+                    aircraft.get('registration', None),
                     aircraft.get('type', None)
                 ))
 
                 for pos in aircraft.get('positions', []):
                     positions_data_list.append((
-                        aircraft['icao'], 
-                        pos['timestamp'], 
-                        pos['lat'], 
+                        aircraft['icao'],
+                        pos['timestamp'],
+                        pos['lat'],
                         pos['lon'],
-                        pos.get('altitude_baro', None), 
-                        pos.get('ground_speed', None), 
+                        pos.get('altitude_baro', None),
+                        pos.get('ground_speed', None),
                         pos.get('emergency', False)
                     ))
 
@@ -146,48 +147,50 @@ def prepare_data() -> str:
         """, positions_data_list)
 
         conn.commit()
-        logger.info(f"Inserted {len(aircraft_data_list)} aircraft and {len(positions_data_list)} positions into the database")
-    
+        logger.info(
+            f"Inserted {len(aircraft_data_list)} aircraft and {len(positions_data_list)} positions into the database"
+        )
+
     return "Data successfully loaded into RDS!"
 
 # List Aircraft
 @s7.get("/aircraft/")
-def list_aircraft(num_results: int = 100, page: int = 0) -> List[Dict]:
+def list_aircraft(num_results: int = 100, page: int = 0) -> list[dict]:
     """List aircraft with pagination."""
     with get_db_connection() as conn, conn.cursor() as cur:
         cur.execute("""
-            SELECT icao, registration, type 
-            FROM aircraft 
-            ORDER BY icao ASC 
+            SELECT icao, registration, type
+            FROM aircraft
+            ORDER BY icao ASC
             LIMIT %s OFFSET %s
         """, (num_results, page * num_results))
         return [{"icao": r[0], "registration": r[1], "type": r[2]} for r in cur.fetchall()]
 
 # List Aircraft Positions
 @s7.get("/aircraft/{icao}/positions")
-def get_aircraft_position(icao: str, num_results: int = 1000, page: int = 0) -> List[Dict]:
+def get_aircraft_position(icao: str, num_results: int = 1000, page: int = 0) -> list[dict]:
     """List positions for a specific aircraft with pagination."""
     with get_db_connection() as conn, conn.cursor() as cur:
         cur.execute("""
-            SELECT timestamp, lat, lon 
-            FROM positions 
-            WHERE icao = %s 
-            ORDER BY timestamp ASC 
+            SELECT timestamp, lat, lon
+            FROM positions
+            WHERE icao = %s
+            ORDER BY timestamp ASC
             LIMIT %s OFFSET %s
         """, (icao, num_results, page * num_results))
         return [{"timestamp": r[0], "lat": r[1], "lon": r[2]} for r in cur.fetchall()]
 
 # Get Aircraft Statistics
 @s7.get("/aircraft/{icao}/stats")
-def get_aircraft_statistics(icao: str) -> Dict:
+def get_aircraft_statistics(icao: str) -> dict:
     """Get statistics for a specific aircraft."""
     with get_db_connection() as conn, conn.cursor() as cur:
         cur.execute("""
-            SELECT 
+            SELECT
                 MAX(altitude_baro) as max_altitude_baro,
                 MAX(ground_speed) as max_ground_speed,
                 BOOL_OR(emergency) as had_emergency
-            FROM positions 
+            FROM positions
             WHERE icao = %s
         """, (icao,))
         result = cur.fetchone()

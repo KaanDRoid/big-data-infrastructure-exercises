@@ -1,8 +1,9 @@
+import os
+from datetime import datetime, timedelta
+
+import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from datetime import datetime, timedelta
-import os
-import requests
 
 # Config
 DATA_URL = "http://downloads.adsbexchange.com/downloads/basic-ac-db.json.gz"

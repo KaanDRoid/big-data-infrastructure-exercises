@@ -1,7 +1,8 @@
-import psycopg2
 import json
 import os
-from typing import Optional, List
+from typing import Optional
+
+import psycopg2
 from fastapi import APIRouter, status
 from pydantic import BaseModel
 
@@ -40,8 +41,8 @@ DB_PASS = os.getenv("PG_PASS", "postgres")
 
 FUEL_CONSUMPTION_PATH = "/tmp/aircraft_type_fuel_consumption_rates/aircraft_type_fuel_consumption_rates.json"
 
-@s8.get("/aircraft/", response_model=List[AircraftReturn])
-def list_aircraft(num_results: int = 100, page: int = 0) -> List[AircraftReturn]:
+@s8.get("/aircraft/", response_model=list[AircraftReturn])
+def list_aircraft(num_results: int = 100, page: int = 0) -> list[AircraftReturn]:
     """
     List all the available aircraft, its registration and type ordered by icao asc FROM THE DATABASE
     Only return the aircraft that we have seen and not the entire list in the aircrafts database
@@ -89,18 +90,15 @@ def get_aircraft_co2(icao: str, day: str) -> AircraftCO2:
     Use the gallon per hour from aircraft_type_fuel_consumption_rates.json
     If you don't have the fuel consumption rate, return `None` in the `co2` field
     """
-    # 1. Get the number of rows for the given aircraft and day
+    # 1. Saat hesabı
     conn = psycopg2.connect(host=DB_HOST, port=DB_PORT, dbname=DB_NAME, user=DB_USER, password=DB_PASS)
     cur = conn.cursor()
-    # day format: YYYYMMDD
-    day_start = int(day + "0000")
-    day_end = int(day + "2359")
     cur.execute("""
         SELECT COUNT(*) FROM positions WHERE icao = %s AND to_char(to_timestamp(timestamp), 'YYYYMMDD') = %s
     """, (icao, day))
     row_count = cur.fetchone()[0]
     hours_flown = (row_count * 5) / 3600 if row_count else 0.0
-    # 2. Get the aircraft type from the database
+    # 2. Uçağın type'ını bul
     cur.execute("SELECT type FROM aircraft WHERE icao = %s", (icao,))
     row = cur.fetchone()
     icaotype = row[0] if row else None
@@ -109,7 +107,7 @@ def get_aircraft_co2(icao: str, day: str) -> AircraftCO2:
     # 3. Fuel consumption rate
     co2 = None
     if icaotype and os.path.exists(FUEL_CONSUMPTION_PATH):
-        with open(FUEL_CONSUMPTION_PATH, "r", encoding="utf-8") as f:
+        with open(FUEL_CONSUMPTION_PATH, encoding="utf-8") as f:
             fuel_data = json.load(f)
         fuel_info = fuel_data.get(icaotype)
         if fuel_info and "galph" in fuel_info:

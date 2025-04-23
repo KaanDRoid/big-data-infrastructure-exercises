@@ -1,8 +1,9 @@
+import os
+from datetime import datetime, timedelta
+
+import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from datetime import datetime, timedelta
-import os
-import requests
 
 # Config
 DATA_URL = "https://raw.githubusercontent.com/martsec/flight_co2_analysis/main/data/aircraft_type_fuel_consumption_rates.json"

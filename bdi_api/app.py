@@ -1,11 +1,9 @@
-from dotenv import load_dotenv
-load_dotenv()
-
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 import uptrace
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from starlette import status
@@ -16,8 +14,10 @@ from bdi_api.examples import v0_router
 from bdi_api.s1.exercise import s1
 from bdi_api.s4.exercise import s4
 from bdi_api.s7.exercise import s7
-from bdi_api.settings import Settings
 from bdi_api.s8.exercise import s8
+from bdi_api.settings import Settings
+
+load_dotenv()
 
 # Configure logging
 logger = logging.getLogger("uvicorn.error")

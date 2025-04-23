@@ -49,7 +49,7 @@ def download_data(file_limit: int = 1001) -> str:
         filename = current_time.strftime("%H%M%SZ.json.gz")
         file_url = base_url + filename
         s3_key = f"{s3_prefix_path}{filename}"
-        
+
         download_gzip_and_store_in_s3(file_url, s3_bucket, s3_key)
 
         current_time += timedelta(seconds=5)

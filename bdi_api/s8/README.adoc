@@ -38,63 +38,6 @@ NOTE: *Extra point*: maintain all historic data from `aircrafts database` and do
 
 NOTE: *Extra point*: Write Infrastructure as Code (terraform or cloudformation) to deploy all the aws infrastructure: S3, RDS, EC2 instance with the API, security groups and EC2 instance with airflow. Create a folder called `deploy` and add them there. Provide screenshots of all deployed services and an architecture diagram.
 
-== Installing and running airflow
-
-Airflow is a library and an app.
-On one hand the library will allow us to write the dag. On the other hand the application will pick-up our dag and process it.
-
-IMPORTANT: *Do not use windows*. Use Linux/MacOS or install WSL2 (Windows subsystem for linux 2)
-
-
-You have two options.
-
-=== 1. Install it locally
-
-This is the best way of having airflow, since it installs both the app and the
-library that your IDE will recognize.
-
-// TODO
-
-[source,bash]
-----
-AIRFLOW_VERSION=2.8.1
-PYTHON_VERSION="$(python3 --version | cut -d " " -f 2 | cut -d "." -f 1-2)"
-CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
-
-pip3 install "apache-airflow[amazon,postgres]==${AIRFLOW_VERSION}" --constraint "${CONSTRAINT_URL}"
-
-----
-
-
-NOTE: If you are using and old version of MacOS, it will probably not work.
-
-
-=== 2. Run it via docker
-
-Limitation: you just install the app and not the library.
-Your IDE will not help in knowing if you are making some errors in the code.
-
-[source,bash]
-----
-export AIRFLOW_HOME=$HOME/airflow
-mkdir $AIRFLOW_HOME
-mkdir $AIRFLOW_HOME/dags
-chmod -R 777 $AIRFLOW_HOME
-# chmod -R o+r $HOME/.aws
-
-
-docker run -p 8080:8080 -e AIRFLOW_UID=$(id -u) -v $HOME/.aws:/home/airflow/.aws -v $AIRFLOW_HOME:/opt/airflow --name airflow -e AIRFLOW__CORE__LOAD_EXAMPLES='true' apache/airflow:latest standalone
-
-# To install any pip package (e.g. pandas, which is already installed)
-docker exec airflow pip install pandas
-----
-
-This will provide a base image with the basic packages installed like `boto3`, `psycopg2`, `pandas`
-It will also mount your aws credentials file to the docker container.
-
-In this case, put your dags inside `$AIRFLOW_HOME/dags`
-
-IMPORTANT: visit the airflow UI http://localhost:8080 and check the logs for the user and password
 
 === Writing a dag
 

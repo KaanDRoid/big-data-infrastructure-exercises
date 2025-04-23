@@ -1,19 +1,20 @@
+import json
+import os
+from datetime import datetime, timedelta
+
+import boto3
+import psycopg2
+import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from datetime import datetime, timedelta
-import os
-import requests
-import boto3
 from botocore.exceptions import ClientError
-import psycopg2
-import json
 
 # DAG config
 START_DATE = datetime(2023, 11, 1)
 END_DATE = datetime(2024, 11, 1)
 DATA_URL = "https://samples.adsbexchange.com/readsb-hist"
 DOWNLOAD_DIR = "/tmp/readsb_hist_data"
-S3_BUCKET = "bdi-aircraft-kaan"  
+S3_BUCKET = "bdi-aircraft-kaan"
 s3_client = boto3.client("s3")
 
 DB_HOST = os.getenv("PG_HOST", "localhost")
@@ -31,7 +32,7 @@ def is_first_of_month(execution_date):
 def upload_to_s3(local_path, s3_key):
     try:
         s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
-        return  # Dosya zaten var, idempotency
+        return  # idempotency
     except ClientError as e:
         if e.response['Error']['Code'] != '404':
             raise
@@ -85,7 +86,7 @@ def insert_prepared_to_postgres(prepared_dir, execution_date):
     for file in os.listdir(prepared_dir):
         if file.endswith(".prepared"):
             file_path = os.path.join(prepared_dir, file)
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 try:
                     data = json.load(f)
                 except Exception:
@@ -123,7 +124,7 @@ def prepare_files(execution_date, **context):
     s3_prepared_prefix = f"prepared/day={date_str.replace('-', '')}/"
     if os.path.exists(prepared_flag):
         return  # Idempotency: already prepared
-    # Dummy prepare step: her dosyayı prepared klasörüne kopyala ve S3'e yükle
+    # Dummy prepare step
     for file in os.listdir(day_dir):
         if file.endswith(".json.gz"):
             local_path = os.path.join(day_dir, file)
@@ -132,7 +133,7 @@ def prepare_files(execution_date, **context):
                 dst.write(src.read())  # Gerçek işleme burada yapılabilir
             s3_key = s3_prepared_prefix + os.path.basename(prepared_local_path)
             upload_to_s3(prepared_local_path, s3_key)
-    # PostgreSQL'e yükle
+    # Prepare the data for PostgreSQL
     insert_prepared_to_postgres(day_dir, execution_date)
     with open(prepared_flag, "w") as f:
         f.write("prepared")
